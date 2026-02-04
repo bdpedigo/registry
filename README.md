@@ -26,6 +26,7 @@ The registry is intentionally **descriptive, not authoritative**: it records wha
       - [Option 1](#option-1)
       - [Option 2](#option-2)
       - [Option 3](#option-3)
+  - [Future Extensions](#future-extensions)
 
 ## Core Philosophy
 
@@ -251,6 +252,12 @@ sequenceDiagram
   Storage-->>Registry: Signed URL
   Registry-->>User: Signed URL
 ```
+
+## Future Extensions
+
+- This enables a pathway for writing static dumps of tables (say, from old materialization version which we want to support but not keep in SQL) into object storage. The materialization engine could be triggered to write out the table to cloud storage and generate the appropriate metadata for the registry to register it.
+    - Even for more modern versions of tables, this could still be a good idea, because it enables query engines to see and possibly join to these tables without needing to go through the materialization engine (slow).
+- The enables a future where systems are generating features on a schedule or on the fly in the interim, and registering them automatically with the registry.
 
 <!-- 
 ## Conceptual Model
