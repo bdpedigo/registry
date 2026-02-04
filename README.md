@@ -16,9 +16,16 @@ The registry is intentionally **descriptive, not authoritative**: it records wha
   - [What the Registry Is (and Is Not)](#what-the-registry-is-and-is-not)
     - [The registry **is**](#the-registry-is)
     - [The registry **is not**](#the-registry-is-not)
-  - [Access Flow (Mermaid)](#access-flow-mermaid)
+  - [Example Workflows](#example-workflows)
+    - [Register Flow](#register-flow)
+    - [Access Flow (Mermaid)](#access-flow-mermaid)
   - [Guiding Principle](#guiding-principle)
-  - [Decision Points](#decision-points)
+  - [Scratch / Brainstorming](#scratch--brainstorming)
+    - [Decision Points](#decision-points)
+    - [Options for Service Delineations](#options-for-service-delineations)
+      - [Option 1](#option-1)
+      - [Option 2](#option-2)
+      - [Option 3](#option-3)
 
 ## Core Philosophy
 
@@ -81,7 +88,24 @@ This preserves:
 - An access proxy (will not pass you any data)
 - A workflow scheduler
 
-## Access Flow (Mermaid)
+## Example Workflows
+
+### Register Flow
+
+```mermaid
+sequenceDiagram
+  actor Producer as Data scientist / system
+  participant Storage as Object storage
+  participant Registry as Feature registry
+
+  Producer->>Producer: Generate table
+  Producer->>Storage: Write table
+  Producer->>Registry: Register table + metadata
+  Registry->>Registry: Validate metadata
+  Registry-->>Producer: Registration confirmation
+```
+
+### Access Flow (Mermaid)
 
 ```mermaid
 sequenceDiagram
@@ -103,7 +127,7 @@ sequenceDiagram
 ```
 
 - Feature registry: this service
-- Signing service: issues time-limited signed URLs
+- Signing service: issues time-limited signed URLs. Unclear if this is part of auth, part of registry, or separate (see below under [Scratch / Brainstorming](#scratch--brainstorming)). 
 - Query engine: Polars, DuckDB, etc.
 - Object storage: GCS, S3, etc.
 
@@ -116,7 +140,9 @@ sequenceDiagram
 This registry exists to make large-scale connectomics feature data
 **discoverable, interpretable, and reusable**—without slowing down science.
 
-## Decision Points
+## Scratch / Brainstorming
+
+### Decision Points
 
 - What to use as the underlying metadata platform?
   - DataHub
@@ -157,6 +183,74 @@ This registry exists to make large-scale connectomics feature data
   - partition columns
 - How to ensure to keep this compatible with future services which might involve worker systems which write data on some schedule or dynamically as features are updated (e.g. Dagster)?
 - At what granularity to define access for users (really this is a concern of the signing service, but could be part of metadata?)?
+
+### Options for Service Delineations
+
+Currently, we have the `auth` service which handles user authentication and authorization. We are debating several options for how to divide responsibilities related to user authentication, creation of signed URLs, and table metadata lookup between the `auth` service, a potential new `signing` service, and the `registry` service.
+
+All will assume the user already knows which table they want to access; exploring tables and planning queries is assumed to already be done (handled by the user querying the registry for metadata).
+
+#### Option 1
+
+Auth, signing, and registry are separate services.
+
+```mermaid
+sequenceDiagram
+  actor User
+  participant Signer as Signing Service
+  participant Auth as Auth Service
+  participant Registry as Registry Service
+  participant Storage as Object Storage API
+
+  User->>Signer: Request signed URL (token + table id)
+  Signer->>Auth: Verify user token
+  Auth-->>Signer: Auth OK
+  Signer->>Registry: Lookup table location
+  Registry-->>Signer: Table location
+  Signer->>Storage: Request signed URL
+  Storage-->>Signer: Signed URL
+  Signer-->>User: Signed URL
+```
+
+#### Option 2
+
+Auth handles signing; registry handles metadata.
+
+```mermaid
+sequenceDiagram
+  actor User
+  participant Auth as Auth Service
+  participant Registry as Registry Service
+  participant Storage as Object Storage API
+
+  User->>Auth: Request signed URL (token + table id)
+  Auth->>Auth: Verify user token
+  Auth->>Registry: Lookup table location
+  Registry-->>Auth: Table location
+  Auth->>Storage: Request signed URL
+  Storage-->>Auth: Signed URL
+  Auth-->>User: Signed URL
+```
+
+#### Option 3
+
+Everything handled by registry service (backed by auth).
+
+```mermaid
+sequenceDiagram
+  actor User
+  participant Registry as Registry Service
+  participant Auth as Auth Service
+  participant Storage as Object Storage API
+
+  User->>Registry: Request signed URL (token + table id)
+  Registry->>Auth: Verify user token
+  Auth-->>Registry: Auth OK
+  Registry->>Registry: Lookup table location
+  Registry->>Storage: Request signed URL
+  Storage-->>Registry: Signed URL
+  Registry-->>User: Signed URL
+```
 
 <!-- 
 ## Conceptual Model
