@@ -97,6 +97,11 @@ sequenceDiagram
    Engine-->>User: Query results
 ```
 
+- Feature registry: this service
+- Signing service: issues time-limited signed URLs
+- Query engine: Polars, DuckDB, etc.
+- Object storage: GCS, S3, etc.
+
 ---
 
 ## Conceptual Model
