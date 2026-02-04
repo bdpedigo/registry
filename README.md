@@ -12,7 +12,6 @@ The registry is intentionally **descriptive, not authoritative**: it records wha
     - [Facts, not enforcement](#facts-not-enforcement)
     - [One explicit publish step](#one-explicit-publish-step)
     - [Materialization versions are the clock](#materialization-versions-are-the-clock)
-    - [Data is immutable; meaning evolves](#data-is-immutable-meaning-evolves)
   - [What the Registry Is (and Is Not)](#what-the-registry-is-and-is-not)
     - [The registry **is**](#the-registry-is)
     - [The registry **is not**](#the-registry-is-not)
@@ -63,15 +62,6 @@ Publishing a dataset is a **deliberate, explicit action** that:
 All feature artifacts are generated **against explicit materialization versions** of upstream systems (segmentation, annotations, etc.).
 
 There is currently no attempt to make large feature tables “live” with respect to ongoing edits. Instead, we make materialization version alignment **explicit and queryable**.
-
-### Data is immutable; meaning evolves
-
-Feature tables are treated as **immutable artifacts**. If something changes, a **new version is published**. Nothing is overwritten or silently updated.
-
-This preserves:
-- Reproducibility
-- Trust
-- Long-term debuggability
 
 ## What the Registry Is (and Is Not)
 
@@ -184,6 +174,8 @@ This registry exists to make large-scale connectomics feature data
   - partition columns
 - How to ensure to keep this compatible with future services which might involve worker systems which write data on some schedule or dynamically as features are updated (e.g. Dagster)?
 - At what granularity to define access for users (really this is a concern of the signing service, but could be part of metadata?)?
+- ChatGPT suggested "Feature tables are treated as **immutable artifacts**. If something changes, a **new version is published**. Nothing is overwritten or silently updated." This seems hard to enforce given what we've described otherwise so far.
+
 
 ### Options for Service Delineations
 
