@@ -1,4 +1,4 @@
-# Connectomics Feature Registry (proposal)
+# Connectomics Feature Registry/Catalog (proposal)
 
 This service provides a **metadata registry** for large, externally stored feature tables and embeddings (Parquet, Delta Lake, Iceberg, Lance, etc.) generated from connectomics data. It is designed to support **petabyte-scale, materialization-version-based connectomics data** without moving or duplicating data.
 
@@ -6,13 +6,13 @@ The primary audience is **data scientists** who publish, discover, and interpret
 
 The registry is intentionally **descriptive, not authoritative**: it records what exists, how it was produced, and how it relates to other data—but it does not own the bytes, enforce access, or execute queries.
 
-- [Connectomics Feature Registry (proposal)](#connectomics-feature-registry-proposal)
+- [Connectomics Feature Registry/Catalog (proposal)](#connectomics-feature-registrycatalog-proposal)
   - [Core Philosophy](#core-philosophy)
-    - [1. Data is immutable; meaning evolves](#1-data-is-immutable-meaning-evolves)
-    - [2. Materialization versions are the clock](#2-materialization-versions-are-the-clock)
-    - [3. Registration is not ownership](#3-registration-is-not-ownership)
-    - [4. Facts, not enforcement](#4-facts-not-enforcement)
-    - [5. One explicit publish step](#5-one-explicit-publish-step)
+    - [Registration is not ownership](#registration-is-not-ownership)
+    - [Facts, not enforcement](#facts-not-enforcement)
+    - [One explicit publish step](#one-explicit-publish-step)
+    - [Materialization versions are the clock](#materialization-versions-are-the-clock)
+    - [Data is immutable; meaning evolves](#data-is-immutable-meaning-evolves)
   - [What the Registry Is (and Is Not)](#what-the-registry-is-and-is-not)
     - [The registry **is**](#the-registry-is)
     - [The registry **is not**](#the-registry-is-not)
@@ -22,22 +22,7 @@ The registry is intentionally **descriptive, not authoritative**: it records wha
 
 ## Core Philosophy
 
-### 1. Data is immutable; meaning evolves
-
-Feature tables are treated as **immutable artifacts**. If something changes, a **new version is published**. Nothing is overwritten or silently updated.
-
-This preserves:
-- Reproducibility
-- Trust
-- Long-term debuggability
-
-### 2. Materialization versions are the clock
-
-All feature artifacts are generated **against explicit materialization versions** of upstream systems (segmentation, annotations, etc.).
-
-There is currently no attempt to make large feature tables “live” with respect to ongoing edits. Instead, we make materialization version alignment **explicit and queryable**.
-
-### 3. Registration is not ownership
+### Registration is not ownership
 
 The registry **never copies data**.
 
@@ -45,7 +30,7 @@ The registry **never copies data**.
 - Query engines (Polars, DuckDB, Spark, Ray) read data directly
 - The registry stores *metadata only*
 
-### 4. Facts, not enforcement
+### Facts, not enforcement
 
 The registry stores **signals**, not decisions.
 
@@ -56,16 +41,29 @@ For example:
 
 Whether a dataset is “valid” for a particular use case is left to **downstream tooling and users**, not hard-coded rules.
 
-### 5. One explicit publish step
+### One explicit publish step
 
 Nothing appears in the registry automatically.
 
 Publishing a dataset is a **deliberate, explicit action** that:
 - Declares intent
 - Assigns ownership
-- Freezes semantics
+- Describes metadata
 
-This avoids ghost datasets and accidental production dependencies.
+### Materialization versions are the clock
+
+All feature artifacts are generated **against explicit materialization versions** of upstream systems (segmentation, annotations, etc.).
+
+There is currently no attempt to make large feature tables “live” with respect to ongoing edits. Instead, we make materialization version alignment **explicit and queryable**.
+
+### Data is immutable; meaning evolves
+
+Feature tables are treated as **immutable artifacts**. If something changes, a **new version is published**. Nothing is overwritten or silently updated.
+
+This preserves:
+- Reproducibility
+- Trust
+- Long-term debuggability
 
 ## What the Registry Is (and Is Not)
 
@@ -122,11 +120,13 @@ This registry exists to make large-scale connectomics feature data
 
 - What to use as the underlying metadata platform?
   - DataHub
-  - Amundsen
+    - [Blog on the creation of DataHub](https://www.linkedin.com/blog/engineering/data-management/datahub-popular-metadata-architectures-explained)
   - OpenMetadata
-  - Unity Catalog
-  - Atlan
-  - Marquez
+    - [Blog on why to use OpenMetadata](https://blog.open-metadata.org/why-openmetadata-is-the-right-choice-for-you-59e329163cac) (I found it really jargony)
+    - [Doc on main concepts in OpenMetadata](https://docs.open-metadata.org/latest/main-concepts/high-level-design?utm_source=google&utm_medium=paid-search&utm_campaign=omd-goog-amer-en-brand-aw&utm_adgroup=165976860866&utm_term=open%20metadata&utm_campaign=21627991159&utm_source=google&utm_medium=paid_search&hsa_acc=2097547741&hsa_cam=21627991159&hsa_grp=165976860866&hsa_ad=710804984805&hsa_src=g&hsa_tgt=kwd-903209659080&hsa_kw=open%20metadata&hsa_mt=e&hsa_net=adwords&hsa_ver=3&gad_source=1&gad_campaignid=21627991159&gbraid=0AAAAA9-MDDldmZedqY4SwsmfITe4iuQDB&gclid=Cj0KCQiA-YvMBhDtARIsAHZuUzLdz664JsOyzfaH_IrTSpA1XE3joAIBa9H-Sd8KJiqMWj3F9fK2dwIaAkB9EALw_wcB)
+  - Amundsen
+  - Unity CatalogvV
+  - [Marquez](https://marquezproject.ai/about/)
   - Custom solution
 - What metadata fields to use initially?
   - table name
@@ -154,6 +154,9 @@ This registry exists to make large-scale connectomics feature data
   - auto-detect schema from the data?
   - verify materialization version exists? what if it is not a long term release?
   - should the registry block publishing if materialization version is missing?
+  - partition columns
+- How to ensure to keep this compatible with future services which might involve worker systems which write data on some schedule or dynamically as features are updated (e.g. Dagster)?
+- At what granularity to define access for users (really this is a concern of the signing service, but could be part of metadata?)?
 
 <!-- 
 ## Conceptual Model
