@@ -1,11 +1,11 @@
 # Connectomics Feature Registry/Catalog (proposal) <!-- omit from toc -->
 
-This service provides a **metadata registry** for large, externally stored feature tables and embeddings (Parquet, Delta Lake, Iceberg, Lance, etc.) generated from connectomics data. It is designed to be a **lightweight, descriptive layer** that enables discovery, interpretation, and reuse of feature datasets without owning the data. It also aims to handle access so that users can easily retrieve data but access costs can be managed.
+This service would provide a **metadata registry** for large, externally stored feature tables and embeddings (Parquet, Delta Lake, Iceberg, Lance, etc.) generated from connectomics data. It is designed to be a **lightweight, descriptive layer** that enables discovery, interpretation, and reuse of feature datasets without owning the data. It also aims to handle access so that users can easily retrieve data but access costs can be managed.
 
 - [Use Cases](#use-cases)
   - [Bulk](#bulk)
-  - [Data scientist](#data-scientist)
   - [Data analyst](#data-analyst)
+  - [Data scientist](#data-scientist)
 - [Decision Points / Concerns / Brainstorming](#decision-points--concerns--brainstorming)
 - [Example Workflows](#example-workflows)
   - [Register Flow](#register-flow)
@@ -28,17 +28,25 @@ This service provides a **metadata registry** for large, externally stored featu
 
 ### Bulk
 
+_Tasks along the lines of "just give me a large chunk of some data table"_
+
 - Download the entire synapse table for a fixed materialization version for offline analysis
-
-### Data scientist
-
-- Pull the soma-nucleus features for latest nuclei
-- Pull SegCLR embeddings for presynaptic sites from proofread cells for training a model
-- Query for SegCLR embeddings which are similar to a given synapse embedding (e.g. for searching for objects like me)
 
 ### Data analyst
 
-- Pull the synapse table for proofread axon cells, but with a extra columns showing "distance from postsynaptic soma" and bouton size which were pre-computed in a feature table for a fixed materialization version and registered in the registry
+_Tasks that involve gathering data into a clean table useful for exploration or making scientific plots, using information beyond what is currently supported in CAVE_
+
+- Pull the synapse table for proofread axon cells, but with a extra columns showing distance from postsynaptic soma and bouton size, both of which were pre-computed and placed in feature tables for a fixed materialization version and registered in the registry
+- Pull the raw soma-nucleus features for latest nuclei to make a plot of how nucleus folding varies between two cell types
+
+### Data scientist
+
+_Tasks that involve training models, deploying models, or doing computational search that might involve more complicated queries and joins_
+
+- Pull SegCLR embeddings for presynaptic sites from proofread cells for training a model
+- Query for SegCLR embeddings which are similar to a given synapse embedding (e.g. for searching for "synapses like me")
+- Pull HKS features for pre- and post-synaptic sites for all synapses for a fixed materialization version
+- Pull spine morphometry features for all spines that are within 500nm of the soma on excitatory cells
 
 ## Decision Points / Concerns / Brainstorming
 
