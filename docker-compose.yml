@@ -1,0 +1,16 @@
+services:
+  registry:
+    build:
+      context: ..
+      dockerfile: docker/Dockerfile
+    environment:
+      - SCRIPT_NAME=${SCRIPT_NAME:-example.py}
+    volumes:
+      # Mount CloudVolume secrets for CAVEclient access
+      - ${HOME}/.cloudvolume/secrets:/root/.cloudvolume/secrets:ro
+      # Mount scripts directory for development
+      - ./scripts:/scripts:ro
+    platform: linux/amd64
+    # Remove container after run
+    profiles:
+      - default
