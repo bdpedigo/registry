@@ -5,9 +5,9 @@ services:
       dockerfile: docker/Dockerfile
     environment:
       - SCRIPT_NAME=${SCRIPT_NAME:-table_to_deltalake.py}
-      - DATASTACK=minnie65_phase3_v1
-      - VERSION=1412
-      - TABLE_NAME=synapses_pni_2
+      # - DATASTACK=minnie65_phase3_v1
+      # - VERSION=1412
+      - TABLE_NAME=synapses_v1dd
       - POLARS_SKIP_CPU_CHECK=1
     volumes:
       # Mount CloudVolume secrets for CAVEclient access

@@ -99,7 +99,7 @@ sequenceDiagram
 
 ---
 
-# Decision Points 
+# Decision Points
 
 ---
 
@@ -110,14 +110,14 @@ sequenceDiagram
 
 - table name
 - description
-- location (URI)
-- format (e.g. Delta, Iceberg, Lance)
+- path to table
+- format (Delta, Iceberg, Lance...)
 - schema (column names and types), optional text description
 - datastack or aligned volume identifier
 - snapshot timestamp or time range
 - materialization version alignment
 - ownership (team, individual)
-- invalidation radius (in nm), optional
+- invalidation radius
 
 </div>
 <div>
@@ -137,23 +137,12 @@ sequenceDiagram
 
 ---
 
-## What (if anything) to enforce vs just record as metadata?
+## What to enforce vs just record as metadata?
 
-- make sure the table exists at the given location?
+- make sure the table exists at the given location
 - auto-detect schema from the data?
 - verify materialization version exists? what if it is not a long term release?
-
----
-
-## What CAVE-like interface (if any) to provide users?
-
----
-
-## At what level to define access control?
-
----
-
-## What is the mechanism for writing table dumps from materialization engine to object storage and registering them in the registry?
+- how much validation to do on references to annotation tables and columns? just record as text or try to validate against CAVE?
 
 ---
 
@@ -171,10 +160,29 @@ sequenceDiagram
 
 ---
 
-## Decision Points / Concerns / Brainstorming
+## At what level to define access control?
 
+- can any user access any table for the datastack?
+- how to parameterize amount that someone can query?
 
+---
+
+## What is our contract with users regarding table availability and durability?
+
+- future might involve worker systems which write data on some schedule or dynamically as features are updated (e.g. Dagster)
+- annotation tables from CAVE on the other hand should probably remain static
+
+---
+
+## What CAVE-like interface (if any) to provide users?
+
+---
+
+## What is the mechanism for writing table dumps from materialization engine to object storage and registering them in the registry?
+
+---
+
+## Future
+
+- This enables a future where systems are generating features on a schedule or on the fly in the interim, and registering them automatically with the registry.
 - How to ensure to keep this compatible with future services which might involve worker systems which write data on some schedule or dynamically as features are updated (e.g. Dagster)?
-- ChatGPT suggested "Feature tables are treated as **immutable artifacts**. If something changes, a **new version is published**. Nothing is overwritten or silently updated." This seems hard to enforce given what we've described otherwise so far.
-
-- The enables a future where systems are generating features on a schedule or on the fly in the interim, and registering them automatically with the registry.

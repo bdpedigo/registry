@@ -6,7 +6,7 @@ FILE=$SLIDE_DIR/discussion.md
 
 if test -f "$FILE"; then
     echo "$FILE exists." 
-    marp --theme $SLIDE_DIR/themes/aibs.css  --html --allow-local-files $FILE --template "bespoke" --bespoke.osc=false
+    marp --theme $SLIDE_DIR/themes/aibs.css --preview --html --allow-local-files $FILE --template "bespoke" --bespoke.osc=false
 
     # REF: https://github.com/orgs/marp-team/discussions/225
     # had timeout issues on some large presentations
