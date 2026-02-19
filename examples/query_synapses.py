@@ -91,7 +91,7 @@ def synapse_query(
     return table.collect(engine="streaming")
 
 
-sample_roots = query_cell_info["pt_root_id"].sample(10).tolist()
+sample_roots = query_cell_info["pt_root_id"].sample(50).tolist()
 sample_roots
 
 currtime = time.time()

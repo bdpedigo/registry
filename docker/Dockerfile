@@ -1,5 +1,5 @@
 # Use Python 3.12 with UV pre-installed
-FROM ghcr.io/astral-sh/uv:python3.12-slim
+FROM ghcr.io/astral-sh/uv:python3.12-bookworm-slim
 
 # Set working directory
 WORKDIR /app

@@ -3,18 +3,16 @@ services:
     build:
       context: .
       dockerfile: docker/Dockerfile
+      platforms:
+        - linux/amd64
     environment:
-      - SCRIPT_NAME=${SCRIPT_NAME:-table_to_deltalake.py}
-      - DATASTACK=minnie65_phase3_v1
-      - VERSION=1412
-      - TABLE_NAME=synapses_pni_2
-      - POLARS_SKIP_CPU_CHECK=1
+      - SCRIPT_NAME=${SCRIPT_NAME:-example.py}
     volumes:
       # Mount CloudVolume secrets for CAVEclient access
       - ${HOME}/.cloudvolume/secrets:/root/.cloudvolume/secrets:ro
       # Mount scripts directory for development
       - ./scripts:/scripts:ro
-    # platform: linux/amd64  # Commented out for Apple Silicon compatibility
+    platform: linux/amd64
     # Remove container after run
     profiles:
       - default

@@ -7,6 +7,7 @@ from functools import partial
 import numpy as np
 import pandas as pd
 import polars as pl
+import requests
 from caveclient import CAVEclient
 from cloudpathlib import AnyPath as Path
 from cloudvolume import CloudVolume
@@ -15,7 +16,105 @@ from deltalake.table import TableOptimizer
 from deltalake.writer import BloomFilterProperties, ColumnProperties, WriterProperties
 from shapely import wkb
 
+
+def make_csv_dump_request(table_name: str, client: CAVEclient) -> int:
+    """
+    Trigger CSV dump for a materialization table.
+
+    Parameters
+    ----------
+    table_name : str
+        Name of the table to dump.
+    client : CAVEclient
+        An instance of CAVEclient to use for authentication and API access. Should have
+        version set.
+    """
+    base_url = f"{client.info.get_datastack_info()['local_server']}/materialize"
+    endpoint = f"/api/v2/materialize/run/dump_csv_table/datastack/{client.datastack_name}/version/{client.version}/table_name/{table_name}/"
+
+    url = base_url + endpoint
+
+    # Headers to match the working curl command
+    headers = client.auth.request_header
+
+    print(f"Making request to dump table {table_name} via API...")
+
+    # Make POST request with empty data like curl -d ''
+    response = requests.post(url, headers=headers, data="")
+
+    print(f"Response status code: {response.status_code}")
+
+    if response.status_code == 200:
+        return 1
+    else:
+        # Try to extract error message from JSON response
+        try:
+            error_data = response.json()
+            error_message = error_data.get("message", "No error message provided")
+
+            # Handle specific case where another operation is in progress
+            if (
+                response.status_code == 500
+                and "another operation was already in progress" in error_message.lower()
+            ):
+                print("Another operation is in progress. Server is busy.")
+                print("Please try again later.")
+                return -1
+
+            # For other 500 errors, show the full response
+            elif response.status_code == 500:
+                print(f"Full error response: {error_data}")
+
+        except (ValueError, requests.exceptions.JSONDecodeError):
+            print("API returned an error but no JSON error message could be parsed")
+            print(f"Response text: {response.text}")
+
+        return 0
+
+
+def trigger_csv_dump(
+    table_name: str, client: CAVEclient, max_timeout_minutes=60
+) -> int:
+    """
+    Trigger CSV dump for a materialization table.
+
+    Parameters
+    ----------
+    table_name : str
+        Name of the table to dump.
+    client : CAVEclient
+        An instance of CAVEclient to use for authentication and API access. Should have
+        version set.
+    """
+    back = 0
+    wait_times = 0
+    while back != 1 and wait_times < max_timeout_minutes:
+        back = make_csv_dump_request(table_name, client)
+        if back == -1:
+            # If another operation is in progress, wait before retrying
+            print("Waiting for 1 minute before retrying...")
+            print(f"Waited {wait_times} minutes so far.")
+            time.sleep(60)  # Wait for 1 minute before retrying
+            wait_times += 1
+        elif back == 0:
+            # For other errors, you might want to break the loop or handle differently
+            print("An error occurred while triggering CSV dump. Exiting.")
+            return False
+
+    if back == 1:
+        print("CSV dump triggered successfully!")
+        return True
+    else:
+        print(
+            f"Failed to trigger CSV dump after waiting for {max_timeout_minutes} minutes. Please check the server status."
+        )
+        return False
+
+
+# %%
+
 total_time = time.time()
+
 # %%
 
 # PARAMETERS
@@ -37,6 +136,7 @@ datastack = os.getenv("DATASTACK", "v1dd")
 # name of the table or view to process
 # table_name = "synapses_ca3_v1_filtered_view"
 table_name = os.getenv("TABLE_NAME", "connections_with_nuclei")
+segmentation_postfix = os.getenv("SEGMENTATION_POSTFIX", "__aibs_v1dd")
 
 # materialization version
 # version = 357
@@ -83,6 +183,31 @@ bloom_filter_columns = [
 # false positive probability for the bloom filters
 fpp = float(os.getenv("FPP", "0.001"))
 
+# print out all parameters for reference
+print()
+print("Parameters:")
+print("-----------------")
+print(f"mat_db_cloud_path: {mat_db_cloud_path}")
+print(f"datastack: {datastack}")
+print(f"table_name: {table_name}")
+print(f"version: {version}")
+print(f"n_rows_per_chunk: {n_rows_per_chunk}")
+print(f"out_path: {out_path}")
+print(f"partition_column: {partition_column}")
+print(f"n_partitions: {n_partitions}")
+print(f"use_seg_id: {use_seg_id}")
+print(f"zorder_columns: {zorder_columns}")
+print(f"bloom_filter_columns: {bloom_filter_columns}")
+print(f"fpp: {fpp}")
+print()
+
+
+# %%
+for table in [table_name, f"{table_name}{segmentation_postfix}"]:
+    success = trigger_csv_dump(table, CAVEclient(datastack, version=version))
+    if not success:
+        raise RuntimeError(f"Failed to trigger CSV dump for table {table}")
+
 
 # %%
 base_cloud_path = Path(f"{mat_db_cloud_path}/{datastack}/v{version}")
@@ -90,6 +215,8 @@ table_file_name = f"{table_name}.csv.gz"
 header_file_name = f"{table_name}_header.csv"
 table_cloud_path = base_cloud_path / table_file_name
 header_cloud_path = base_cloud_path / header_file_name
+
+# %%
 
 print("Working on table:")
 print(table_cloud_path)

@@ -60,9 +60,7 @@ cat > "/tmp/${JOB_NAME}_config.json" << EOF
             "container": {
               "imageUri": "$CONTAINER_IMAGE",
               "commands": [
-                "/bin/bash",
-                "-c",
-                "cd /workspace && python scripts/table_to_deltalake.py"
+                "/entrypoint.sh"
               ]
             }
           }
@@ -76,6 +74,7 @@ cat > "/tmp/${JOB_NAME}_config.json" << EOF
         "maxRunDuration": "21600s",
         "environment": {
           "variables": {
+            "SCRIPT_NAME": "table_to_deltalake.py",
             "MAT_DB_CLOUD_PATH": "$MAT_DB_CLOUD_PATH",
             "DATASTACK": "$DATASTACK",
             "TABLE_NAME": "$TABLE_NAME",

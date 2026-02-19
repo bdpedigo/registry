@@ -7,12 +7,12 @@
 set -e
 
 # Build and push the container image
-echo "Building Docker image..."
-CONTAINER_IMAGE="gcr.io/exalted-beanbag-334502/cave-registry-batch:latest"
+echo "Building Docker image for production (linux/amd64)..."
+CONTAINER_IMAGE="bdpedigo/cave-registry:latest"
 
-docker build -f Dockerfile.batch -t "$CONTAINER_IMAGE" .
+docker buildx build --platform linux/amd64 -f docker/Dockerfile -t "$CONTAINER_IMAGE" .
 
-echo "Pushing Docker image to Google Container Registry..."
+echo "Pushing Docker image to Docker Hub..."
 docker push "$CONTAINER_IMAGE"
 
 # Set job parameters
@@ -22,7 +22,7 @@ export CONTAINER_IMAGE="$CONTAINER_IMAGE"
 
 # Configure the table processing job
 export DATASTACK="v1dd"
-export TABLE_NAME="connections_with_nuclei"
+export TABLE_NAME="synapses_v1dd"
 export VERSION="1196"
 export OUT_PATH="gs://your-output-bucket/deltalake-output/${DATASTACK}_${TABLE_NAME}_v${VERSION}"
 

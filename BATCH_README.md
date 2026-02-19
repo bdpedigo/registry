@@ -5,7 +5,8 @@ This directory contains scripts and configuration for running the `table_to_delt
 ## Files
 
 - `submit_batch_job.sh` - Main script to submit jobs to Google Cloud Batch
-- `Dockerfile.batch` - Container image for running the job
+- `docker/Dockerfile` - Main container image for running all scripts
+- `docker/entrypoint.sh` - Entrypoint script that runs specified scripts
 - `run_batch_example.sh` - Example usage script
 - `scripts/table_to_deltalake.py` - The main processing script (now parameterized with environment variables)
 
@@ -21,24 +22,50 @@ This directory contains scripts and configuration for running the `table_to_delt
 
 ```bash
 gcloud services enable batch.googleapis.com
-gcloud services enable containerregistry.googleapis.com
 gcloud services enable compute.googleapis.com
 ```
 
 ### 3. Build and Push Container
 
 ```bash
-# Set your project ID
-export PROJECT_ID="your-project-id"
+# Set your Docker Hub username
+export DOCKER_USERNAME="your-docker-username"
 
-# Build the container
-docker build -f Dockerfile.batch -t "gcr.io/$PROJECT_ID/cave-registry-batch:latest" .
+# Build for production (linux/amd64) - required for Google Cloud Batch
+docker buildx build --platform linux/amd64 -f docker/Dockerfile -t "$DOCKER_USERNAME/cave-registry:latest" .
 
-# Push to Google Container Registry
-docker push "gcr.io/$PROJECT_ID/cave-registry-batch:latest"
+# Push to Docker Hub (you'll need to login first: docker login)
+docker push "$DOCKER_USERNAME/cave-registry:latest"
 ```
 
+### Platform Considerations
+
+- **Local Development**: Use `docker-compose.yml` (no platform constraint for Apple Silicon compatibility)
+- **Production/Batch**: Use `docker-compose.prod.yml` or explicit `--platform linux/amd64` builds
+- **Google Cloud Batch**: Requires `linux/amd64` platform
+
 ## Usage
+
+### Local Development
+
+For local development and testing on Apple Silicon:
+
+```bash
+# Use local docker-compose (no platform constraint)
+SCRIPT_NAME=table_to_deltalake.py docker-compose run --rm registry
+```
+
+### Production Builds
+
+For Google Cloud Batch deployment:
+
+```bash
+# Use production docker-compose OR explicit platform build
+SCRIPT_NAME=table_to_deltalake.py docker-compose -f docker-compose.prod.yml run --rm registry
+
+# OR build explicitly for linux/amd64
+docker buildx build --platform linux/amd64 -f docker/Dockerfile -t your-image .
+```
 
 ### Basic Usage
 
@@ -46,7 +73,7 @@ docker push "gcr.io/$PROJECT_ID/cave-registry-batch:latest"
 # Set required parameters
 export PROJECT_ID="your-project-id"
 export OUT_PATH="gs://your-bucket/output-path"
-export CONTAINER_IMAGE="gcr.io/$PROJECT_ID/cave-registry-batch:latest"
+export CONTAINER_IMAGE="your-docker-username/cave-registry:latest"
 
 # Submit the job
 ./submit_batch_job.sh
