@@ -2,7 +2,6 @@
 import time
 
 import polars as pl
-
 from caveclient import CAVEclient
 
 client = CAVEclient("minnie65_phase3_v1")
@@ -107,6 +106,22 @@ print(f"{time.time() - currtime:.3f} seconds elapsed.")
 
 print(polars_synapses.shape[0])
 print(materialization_synapses.shape[0])
+
+# %%
+currtime = time.time()
+
+input_degrees = (
+    pl.scan_delta(
+        table_path,
+    )
+    .filter(
+        pl.col("post_pt_root_id").is_in(query_cell_info["pt_root_id"].unique()),
+    )
+    .group_by(["post_pt_root_id"])
+    .agg(pl.len().alias("n_synapses"))
+).collect(engine="streaming")
+print(f"{time.time() - currtime:.3f} seconds elapsed.")
+
 
 # %%
 

@@ -18,6 +18,19 @@ if [ ! -f "$SCRIPT_PATH" ]; then
     exit 1
 fi
 
+# Activate Google Cloud service account if credentials file exists
+if [ -f "/root/.cloudvolume/secrets/google-secret.json" ]; then
+    echo "Activating Google Cloud service account..."
+    gcloud auth activate-service-account --key-file=/root/.cloudvolume/secrets/google-secret.json
+    if [ $? -eq 0 ]; then
+        echo "Google Cloud authentication successful."
+    else
+        echo "Warning: Google Cloud authentication failed, continuing anyway..."
+    fi
+else
+    echo "Warning: Google Cloud service account file not found at /root/.cloudvolume/secrets/google-secret.json"
+fi
+
 # Run the script using UV
 echo "Running script: $SCRIPT_NAME"
 exec uv run python "$SCRIPT_PATH" "$@"

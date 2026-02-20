@@ -10,6 +10,7 @@ import polars as pl
 import requests
 from caveclient import CAVEclient
 from cloudpathlib import AnyPath as Path
+from cloudpathlib import GSPath
 from cloudvolume import CloudVolume
 from deltalake import DeltaTable, write_deltalake
 from deltalake.table import TableOptimizer
@@ -135,8 +136,12 @@ datastack = os.getenv("DATASTACK", "v1dd")
 
 # name of the table or view to process
 # table_name = "synapses_ca3_v1_filtered_view"
-table_name = os.getenv("TABLE_NAME", "connections_with_nuclei")
+table_name = os.getenv("TABLE_NAME", "synapses_v1dd")
 segmentation_postfix = os.getenv("SEGMENTATION_POSTFIX", "__aibs_v1dd")
+if segmentation_postfix == "":
+    has_segmentation = False
+else:
+    has_segmentation = True
 
 # materialization version
 # version = 357
@@ -161,7 +166,10 @@ out_path = os.getenv(
 
 # column to use for partitioning when writing to deltalake
 # TODO could extend to multiple columns if desired
-partition_column = os.getenv("PARTITION_COLUMN", "post_pt_root_id")
+partition_columns_str = os.getenv("PARTITION_COLUMNS", "pt_root_id")
+partition_columns = [
+    col.strip() for col in partition_columns_str.split(",") if col.strip()
+]
 
 # number of partitions to create
 n_partitions = int(os.getenv("N_PARTITIONS", "64"))
@@ -183,6 +191,17 @@ bloom_filter_columns = [
 # false positive probability for the bloom filters
 fpp = float(os.getenv("FPP", "0.001"))
 
+# FOR TESTING
+
+datastack = "v1dd"
+version = 1196
+table_name = "proofreading_status_and_strategy"
+segmentation_postfix = "__aibs_v1dd"
+mat_db_cloud_path = "gs://cave_annotation_bucket/public"
+n_partitions = 1
+zorder_columns = ["pt_root_id", "id"]
+bloom_filter_columns = []
+
 # print out all parameters for reference
 print()
 print("Parameters:")
@@ -190,10 +209,11 @@ print("-----------------")
 print(f"mat_db_cloud_path: {mat_db_cloud_path}")
 print(f"datastack: {datastack}")
 print(f"table_name: {table_name}")
+print(f"segmentation_postfix: {segmentation_postfix}")
 print(f"version: {version}")
 print(f"n_rows_per_chunk: {n_rows_per_chunk}")
 print(f"out_path: {out_path}")
-print(f"partition_column: {partition_column}")
+print(f"partition_columns: {partition_columns}")
 print(f"n_partitions: {n_partitions}")
 print(f"use_seg_id: {use_seg_id}")
 print(f"zorder_columns: {zorder_columns}")
@@ -203,29 +223,64 @@ print()
 
 
 # %%
-for table in [table_name, f"{table_name}{segmentation_postfix}"]:
+
+segmentation_table_name = f"{table_name}{segmentation_postfix}"
+table_names = [table_name]
+if has_segmentation:
+    table_names.append(segmentation_table_name)
+
+for table in table_names:
     success = trigger_csv_dump(table, CAVEclient(datastack, version=version))
     if not success:
         raise RuntimeError(f"Failed to trigger CSV dump for table {table}")
 
+    # TODO need to add a wait here for the time between request and being done
+    # exists = CloudFile(
+    #     f"{mat_db_cloud_path}{datastack}/v{version}/{table}.csv.gz"
+    # ).exists()
+    # # assert exists, (
+    # #     f"CSV dump for table {table} does not exist at expected path {mat_db_cloud_path}/{datastack}/v{version}/{table}.csv.gz after triggering dump"
+    # # )
+    # print(
+    #     f"CSV dump for table {table} at {mat_db_cloud_path}/{datastack}/v{version}/{table}.csv.gz exists: {exists}"
+    # )
 
 # %%
-base_cloud_path = Path(f"{mat_db_cloud_path}/{datastack}/v{version}")
+
+
+base_cloud_path = GSPath(f"{mat_db_cloud_path}/{datastack}/v{version}")
 table_file_name = f"{table_name}.csv.gz"
 header_file_name = f"{table_name}_header.csv"
 table_cloud_path = base_cloud_path / table_file_name
 header_cloud_path = base_cloud_path / header_file_name
 
+table_cloud_paths = {table_name: table_cloud_path}
+header_cloud_paths = {table_name: header_cloud_path}
+
+if has_segmentation:
+    seg_table_cloud_path = base_cloud_path / f"{segmentation_table_name}.csv.gz"
+    seg_table_header_cloud_path = (
+        base_cloud_path / f"{segmentation_table_name}_header.csv"
+    )
+    table_cloud_paths[segmentation_table_name] = seg_table_cloud_path
+    header_cloud_paths[segmentation_table_name] = seg_table_header_cloud_path
+
+
 # %%
 
-print("Working on table:")
-print(table_cloud_path)
-print(header_cloud_path)
-print()
-# check the file sizes and that they exist
-print(f"Table size: {table_cloud_path.stat().st_size / 1e9:.3f} GB")
-print(f"Header size: {header_cloud_path.stat().st_size / 1e3:.3f} KB")
-print()
+# print()
+# # check the file sizes and that they exist
+# print(f"Table size: {table_cloud_path.stat().st_size / 1e9:.3f} GB")
+# print(f"Header size: {header_cloud_path.stat().st_size / 1e3:.3f} KB")
+# if has_segmentation:
+#     print(
+#         f"Segmentation table size: {seg_table_cloud_path.stat().st_size / 1e9:.3f} GB"
+#     )
+#     print(
+#         f"Segmentation header size: {seg_table_header_cloud_path.stat().st_size / 1e3:.3f} KB"
+#     )
+
+# print()
 
 # %%
 # download the table and header files locally
@@ -235,19 +290,26 @@ download_time = time.time()
 print("Downloading table and header files...")
 
 temp_path = Path("/tmp/table_to_deltalake")
-temp_path.mkdir(exist_ok=True)
+temp_path.mkdir(exist_ok=True)  # ty: ignore
 
-subprocess.run(
-    ["gsutil", "cp", str(table_cloud_path), str(temp_path / table_cloud_path.name)]
-)
-subprocess.run(
-    [
-        "gsutil",
-        "cp",
-        str(header_cloud_path),
-        str(temp_path / header_cloud_path.name),
-    ]
-)
+
+for table in table_names:
+    subprocess.run(
+        [
+            "gsutil",
+            "cp",
+            str(table_cloud_paths[table]),
+            str(temp_path / table_cloud_paths[table].name),  # ty: ignore
+        ]
+    )
+    subprocess.run(
+        [
+            "gsutil",
+            "cp",
+            str(header_cloud_paths[table]),
+            str(temp_path / header_cloud_paths[table].name),  # ty: ignore
+        ]
+    )
 
 print(f"{time.time() - download_time:.3f} seconds elapsed to download files.")
 print()
@@ -260,15 +322,28 @@ unzip_time = time.time()
 
 print("Unzipping table file...")
 
-table_local_path = temp_path / table_file_name
-header_local_path = temp_path / header_file_name
-subprocess.run(
-    [
-        "gunzip",
-        str(table_local_path),
-    ]
-)
-table_local_path = temp_path / f"{table_name}.csv"
+table_local_path = temp_path / table_file_name  # ty: ignore
+header_local_path = temp_path / header_file_name  # ty: ignore
+
+table_local_paths = {table_name: table_local_path}
+header_local_paths = {table_name: header_local_path}
+if has_segmentation:
+    seg_table_local_path = temp_path / f"{segmentation_table_name}.csv.gz"  # ty: ignore
+    seg_table_header_local_path = (
+        temp_path / f"{segmentation_table_name}_header.csv"  # ty: ignore
+    )
+    table_local_paths[segmentation_table_name] = seg_table_local_path
+    header_local_paths[segmentation_table_name] = seg_table_header_local_path
+
+for table in table_names:
+    subprocess.run(
+        [
+            "gunzip",
+            str(table_local_paths[table]),
+        ]
+    )
+    table_local_path = temp_path / f"{table}.csv"  # ty: ignore
+    table_local_paths[table] = table_local_path
 
 print(f"{time.time() - unzip_time:.3f} seconds elapsed to unzip table.")
 print()
@@ -295,6 +370,7 @@ SQL_TO_POLARS_DTYPE = {
     "date": pl.Date,
     "timestamp without time zone": pl.Datetime,
     "timestamp with time zone": pl.Datetime,
+    "user-defined": pl.String,
 }
 
 
@@ -315,15 +391,26 @@ def sql_to_polars_dtype(sql_type: str) -> pl.datatypes.DataType:
     return SQL_TO_POLARS_DTYPE[sql_type]
 
 
-def build_polars_schema(schema_df):
+def build_polars_schema(schema_df, string_boolean_columns=None):
     """
     Given a DataFrame with columns ['field', 'dtype'],
     return a dict usable as a Polars schema.
+
+    string_boolean_columns: list of column names that should be treated as strings
+    first (because they contain "t"/"f" instead of true boolean values)
     """
-    return {
-        row.field: sql_to_polars_dtype(row.dtype)
-        for row in schema_df.itertuples(index=False)
-    }
+    schema = {}
+    for row in schema_df.itertuples(index=False):
+        if (
+            row.dtype.strip().lower() == "boolean"
+            and string_boolean_columns is not None
+            and row.field in string_boolean_columns
+        ):
+            # Read as string first, we'll convert later
+            schema[row.field] = pl.String
+        else:
+            schema[row.field] = sql_to_polars_dtype(row.dtype)
+    return schema
 
 
 # decoder for WKB point columns, if necessary
@@ -353,36 +440,94 @@ def id_partition_func(
     return np.uint16(partition)
 
 
-header = pd.read_csv(header_local_path, header=None).rename(
-    columns={0: "field", 1: "dtype"}
+# %%
+def scan_csv_with_header(table_path, header_path) -> pl.LazyFrame:
+    header = pd.read_csv(header_path, header=None).rename(
+        columns={0: "field", 1: "dtype"}
+    )
+    print(header)
+
+    # Track which columns were boolean in the original schema
+    boolean_string_columns = [
+        row.field
+        for row in header.itertuples(index=False)
+        if row.dtype.strip().lower() == "boolean"
+    ]
+
+    schema = build_polars_schema(header, string_boolean_columns=boolean_string_columns)
+
+    table = pl.scan_csv(table_path, has_header=False, schema=schema).drop(
+        DROP_COLUMNS, strict=False
+    )
+
+    # Convert the string boolean columns to actual booleans
+    if boolean_string_columns:
+        table = table.with_columns(
+            [
+                pl.when(pl.col(col) == "t")
+                .then(True)
+                .when(pl.col(col) == "f")
+                .then(False)
+                .otherwise(None)  # Handle any other values as null
+                .alias(col)
+                for col in boolean_string_columns
+                if col
+                in table.collect_schema().names()  # Only process columns that exist after dropping
+            ]
+        )
+
+    schema = table.collect_schema()
+
+    print("Reading in table with schema:")
+    for key, val in schema.items():
+        print(f"{key}: {val}")
+    print()
+
+    return table
+
+
+table = scan_csv_with_header(
+    table_local_paths[table_name], header_local_paths[table_name]
 )
 
-schema = build_polars_schema(header)
+table.collect()
 
 
-table = pl.scan_csv(table_local_path, has_header=False, schema=schema).drop(
-    DROP_COLUMNS, strict=False
-)
+# %%
 
-schema = table.collect_schema()
+if has_segmentation:
+    seg_table = scan_csv_with_header(
+        table_local_paths[segmentation_table_name],
+        header_local_paths[segmentation_table_name],
+    )
+    table = table.join(
+        seg_table,
+        on="id",
+        how="left",
+    )
 
-print("Reading in table with schema:")
-for key, val in schema.items():
-    print(f"{key}: {val}")
-print()
 
 columns = table.collect_schema().names()
 
+for partition_column in partition_columns:
+    if partition_column not in columns:
+        raise ValueError(
+            f"Partition column {partition_column!r} not found in table columns: {columns}"
+        )
+
+
+# %%
 
 # intended to only catch unpacked point columns
-position_columns = [c for c in columns if (c.endswith("_pt_position"))]
-
+position_columns = [c for c in columns if (c.endswith("pt_position"))]
+print(f"Found position columns: {position_columns}")
 if len(position_columns) > 0:
     print(f"Decoding {len(position_columns)} position columns...")
     table = table.with_columns(
         pl.col(position_columns).map_elements(decoder, return_dtype=pl.List(pl.Int32))
     )
 
+# %%
 use_seg_id = False
 if use_seg_id:
     client = CAVEclient(datastack, version=version)
@@ -413,7 +558,6 @@ unfinished = True
 
 start = 0
 while unfinished:
-    print(f"Processing chunk for rows {start:,} to {start + n_rows_per_chunk:,}...")
     chunk_table = table.slice(start, n_rows_per_chunk).collect()
 
     # Process the chunk...
@@ -421,14 +565,14 @@ while unfinished:
     if chunk_table.is_empty():
         unfinished = False
     else:
+        print(f"Writing chunk for rows {start:,} to {start + n_rows_per_chunk:,}...")
+        write_deltalake(
+            out_path,
+            chunk_table,
+            partition_by=partition_by,
+            mode=write_mode,
+        )
         start += n_rows_per_chunk
-
-    write_deltalake(
-        out_path,
-        chunk_table,
-        partition_by=partition_by,
-        mode=write_mode,
-    )
 
 print(f"{time.time() - write_time:.3f} seconds elapsed to read and write table.")
 print()
@@ -440,8 +584,9 @@ print()
 delete_time = time.time()
 
 print("Cleaning up temporary files...")
-subprocess.run(["rm", str(table_local_path)])
-subprocess.run(["rm", str(header_local_path)])
+for table in table_names:
+    subprocess.run(["rm", str(table_local_paths[table])])
+    subprocess.run(["rm", str(header_local_paths[table])])
 print(f"{time.time() - delete_time:.3f} seconds elapsed to delete temporary files.")
 print()
 
