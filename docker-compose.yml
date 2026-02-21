@@ -6,16 +6,16 @@ services:
     environment:
       - SCRIPT_NAME=${SCRIPT_NAME:-table_to_deltalake.py}
       # - DATASTACK=minnie65_phase3_v1
-      - DATASTACK=v1dd
+      # - DATASTACK=v1dd
       # - VERSION=1412
-      - VERSION=1196
+      # - VERSION=1196
       # - TABLE_NAME=aibs_cell_info
-      - TABLE_NAME=cell_type_multifeature_v1
-      - SEGMENTATION_POSTFIX=__aibs_v1dd
+      # - TABLE_NAME=cell_type_multifeature_v1
+      # - SEGMENTATION_POSTFIX=__aibs_v1dd
       # - SEGMENTATION_POSTFIX=__minnie3_v1
       # - MAT_DB_CLOUD_PATH=gs://mat_dbs/public
-      - MAT_DB_CLOUD_PATH=gs://cave_annotation_bucket/public
-      - POLARS_SKIP_CPU_CHECK=1
+      # - MAT_DB_CLOUD_PATH=gs://cave_annotation_bucket/public
+      # - POLARS_SKIP_CPU_CHECK=1
       # Google Cloud authentication
       - GOOGLE_APPLICATION_CREDENTIALS=/root/.cloudvolume/secrets/google-secret.json
     volumes:
