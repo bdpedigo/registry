@@ -1,6 +1,24 @@
 #!/bin/bash
 
 # Google Cloud Batch job submission script for table_to_deltalake.py
+#
+# SECRETS SETUP (similar to kubectl create secret):
+# 1. Upload your CloudVolume secrets to Secret Manager (one-time):
+#      ./upload_secrets.sh
+# 
+# 2. Grant your service account access to the secret:
+#      gcloud secrets add-iam-policy-binding cloudvolume-secrets \
+#        --member='serviceAccount:YOUR-SA@PROJECT.iam.gserviceaccount.com' \
+#        --role='roles/secretmanager.secretAccessor' \
+#        --project='YOUR-PROJECT'
+#
+#    Or use the default Compute Engine service account:
+#      gcloud secrets add-iam-policy-binding cloudvolume-secrets \
+#        --member='serviceAccount:PROJECT-NUMBER-compute@developer.gserviceaccount.com' \
+#        --role='roles/secretmanager.secretAccessor' \
+#        --project='YOUR-PROJECT'
+#
+# The entrypoint will automatically fetch and extract secrets when running on GCE/Batch.
 
 # Set default values
 PROJECT_ID="${PROJECT_ID:-exalted-beanbag-334502}"
@@ -52,6 +70,34 @@ echo "Output Path: $OUT_PATH"
 # Set the project
 gcloud config set project "$PROJECT_ID"
 
+# Get project number for default service account
+PROJECT_NUMBER=$(gcloud projects describe "$PROJECT_ID" --format="value(projectNumber)")
+DEFAULT_SA="${PROJECT_NUMBER}-compute@developer.gserviceaccount.com"
+
+# Determine which service account will be used
+if [[ -n "$SERVICE_ACCOUNT_EMAIL" ]]; then
+    ACTUAL_SA="$SERVICE_ACCOUNT_EMAIL"
+    echo "Using custom service account: $ACTUAL_SA"
+else
+    ACTUAL_SA="$DEFAULT_SA"
+    echo "Using default Compute Engine service account: $ACTUAL_SA"
+fi
+
+# Check if service account has access to cloudvolume-secrets
+echo ""
+echo "Checking Secret Manager access..."
+if gcloud secrets get-iam-policy cloudvolume-secrets --project="$PROJECT_ID" --flatten="bindings[].members" --filter="bindings.members:serviceAccount:$ACTUAL_SA" --format="value(bindings.role)" 2>/dev/null | grep -q "secretmanager.secretAccessor"; then
+    echo "✓ Service account has access to cloudvolume-secrets"
+else
+    echo "⚠ Warning: Service account may not have access to cloudvolume-secrets"
+    echo "  To grant access, run:"
+    echo "  gcloud secrets add-iam-policy-binding cloudvolume-secrets \\"
+    echo "    --member='serviceAccount:$ACTUAL_SA' \\"
+    echo "    --role='roles/secretmanager.secretAccessor' \\"
+    echo "    --project='$PROJECT_ID'"
+fi
+echo ""
+
 # Create instance template name based on job name
 # INSTANCE_TEMPLATE_NAME="batch-template-${JOB_NAME}"
 INSTANCE_TEMPLATE_NAME="https://www.googleapis.com/compute/v1/projects/exalted-beanbag-334502/global/instanceTemplates/batch-template-table-to-deltalake-20260220-152352"
@@ -74,9 +120,9 @@ INSTANCE_TEMPLATE_NAME="https://www.googleapis.com/compute/v1/projects/exalted-b
 #     exit 1
 # fi
 
-echo "Instance template created: $INSTANCE_TEMPLATE_NAME"
+# echo "Instance template created: $INSTANCE_TEMPLATE_NAME"
 
-# end the script here for testing
+# Generate the batch job configuration
 # exit 1
 
 

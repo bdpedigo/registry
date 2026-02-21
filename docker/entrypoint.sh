@@ -18,6 +18,22 @@ if [ ! -f "$SCRIPT_PATH" ]; then
     exit 1
 fi
 
+# Setup CloudVolume secrets directory
+mkdir -p /root/.cloudvolume/secrets
+
+# Check if running on GCE/Batch and fetch secrets from Secret Manager
+if curl -s -H "Metadata-Flavor: Google" http://metadata.google.internal/computeMetadata/v1/instance/ > /dev/null 2>&1; then
+    echo "Running on GCE/Batch - checking for secrets in Secret Manager..."
+    
+    # Try to fetch bundled secrets from Secret Manager
+    if gcloud secrets versions access latest --secret=cloudvolume-secrets 2>/dev/null | tar xzf - -C /root/.cloudvolume/secrets/; then
+        echo "✓ CloudVolume secrets extracted from Secret Manager"
+    else
+        echo "Note: No bundled secrets found in Secret Manager (cloudvolume-secrets)"
+        echo "Will attempt to use VM service account for authentication"
+    fi
+fi
+
 # Activate Google Cloud service account if credentials file exists
 if [ -f "/root/.cloudvolume/secrets/google-secret.json" ]; then
     echo "Activating Google Cloud service account..."
